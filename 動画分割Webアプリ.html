@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブラウザで動く！動画分割ツール (Video Splitter)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* カスタムスクロールバー＆スライダーの調整 */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+        .drag-over {
+            border-color: #3b82f6 !important;
+            background-color: rgba(59, 130, 246, 0.05) !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans flex flex-col">
+
+    <!-- ヘッダー -->
+    <header class="border-b border-slate-800 bg-slate-950/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-scissors text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight text-slate-50">Web Video Splitter</h1>
+                    <p class="text-xs text-slate-400">完全ブラウザ完結型・安全＆高速動画分割</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-3 py-1.5 rounded-full">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>サーバー送信なし（安全）</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- 左側：動画ファイル読み込み ＆ プレイヤー（8カラム） -->
+        <section class="lg:col-span-7 flex flex-col space-y-4">
+            
+            <!-- ドラッグ＆ドロップ エリア（未選択時） -->
+            <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-slate-500 bg-slate-800/40 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[320px] group">
+                <input type="file" id="file-input" accept="video/*" class="hidden">
+                <div class="w-16 h-16 bg-slate-700/50 group-hover:bg-blue-600/20 group-hover:text-blue-400 rounded-full flex items-center justify-center text-slate-400 mb-4 transition">
+                    <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                </div>
+                <h2 class="text-lg font-medium text-slate-200 mb-1">動画ファイルをドラッグ＆ドロップ</h2>
+                <p class="text-sm text-slate-400 mb-4">またはクリックしてファイルを選択 (MP4, MOV, WebM など)</p>
+                <button type="button" onclick="document.getElementById('file-input').click()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-5 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 transition active:scale-95 text-sm">
+                    ファイルを選択
+                </button>
+            </div>
+
+            <!-- 動画プレイヤー（選択時表示） -->
+            <div id="player-container" class="hidden flex-col bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden shadow-xl">
+                <div class="relative bg-black flex items-center justify-center min-h-[240px] max-h-[420px]">
+                    <video id="video-element" class="max-h-[420px] w-auto mx-auto"></video>
+                </div>
+
+                <!-- プレイヤーコントロール -->
+                <div class="p-4 bg-slate-800/80 space-y-3">
+                    <!-- シークバー -->
+                    <div class="relative flex items-center">
+                        <input type="range" id="seek-bar" min="0" max="100" value="0" step="0.1" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- 再生コントロール ＆ 時間表示 -->
+                    <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center space-x-3">
+                            <button id="btn-play-pause" class="w-10 h-10 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center text-white transition">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                            <span id="time-display" class="font-mono text-slate-300">00:00 / 00:00</span>
+                        </div>
+                        <button id="btn-change-file" class="text-xs text-slate-400 hover:text-slate-200 flex items-center space-x-1">
+                            <i class="fa-solid fa-arrow-rotate-left"></i>
+                            <span>別の動画を選ぶ</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- 右側：分割設定 ＆ 切り出し実行（5カラム） -->
+        <section class="lg:col-span-5 flex flex-col space-y-4">
+            
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 shadow-xl space-y-5">
+                <h2 class="text-base font-semibold text-slate-100 flex items-center space-x-2 border-b border-slate-700/60 pb-3">
+                    <i class="fa-solid fa-sliders text-blue-400"></i>
+                    <span>分割モードの選択</span>
+                </h2>
+
+                <!-- タブ切り替え -->
+                <div class="grid grid-cols-2 gap-2 bg-slate-900/60 p-1 rounded-xl border border-slate-700/50 text-xs font-medium">
+                    <button id="tab-custom" onclick="switchMode('custom')" class="py-2 rounded-lg transition bg-blue-600 text-white shadow">
+                        指定区間切り出し
+                    </button>
+                    <button id="tab-interval" onclick="switchMode('interval')" class="py-2 rounded-lg transition text-slate-400 hover:text-slate-200">
+                        均等秒数で分割
+                    </button>
+                </div>
+
+                <!-- モードA：指定区間切り出し -->
+                <div id="mode-custom" class="space-y-4">
+                    <p class="text-xs text-slate-400">動画内の任意の「開始時間」と「終了時間」を指定して切り出します。</p>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-900/40 border border-slate-700/50 p-3 rounded-xl space-y-1">
+                            <label class="text-xs text-slate-400">開始時間 (秒)</label>
+                            <div class="flex items-center space-x-2">
+                                <input type="number" id="custom-start" value="0" min="0" step="0.1" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-blue-500">
+                                <button onclick="setMarker('start')" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-200 shrink-0" title="現在の再生位置をセット">現在値</button>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900/40 border border-slate-700/50 p-3 rounded-xl space-y-1">
+                            <label class="text-xs text-slate-400">終了時間 (秒)</label>
+                            <div class="flex items-center space-x-2">
+                                <input type="number" id="custom-end" value="10" min="0" step="0.1" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-blue-500">
+                                <button onclick="setMarker('end')" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-200 shrink-0" title="現在の再生位置をセット">現在値</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- モードB：均等分割 -->
+                <div id="mode-interval" class="space-y-4 hidden">
+                    <p class="text-xs text-slate-400">動画全体を指定した秒数ごとに自動で区切ります。</p>
+
+                    <div class="bg-slate-900/40 border border-slate-700/50 p-3 rounded-xl space-y-2">
+                        <label class="text-xs text-slate-400">分割間隔 (秒)</label>
+                        <div class="flex items-center space-x-3">
+                            <input type="number" id="interval-seconds" value="10" min="1" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-slate-400 shrink-0">秒ごと</span>
+                        </div>
+                        <div class="flex space-x-2 pt-1">
+                            <button onclick="document.getElementById('interval-seconds').value=5" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded text-slate-300">5秒</button>
+                            <button onclick="document.getElementById('interval-seconds').value=10" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded text-slate-300">10秒</button>
+                            <button onclick="document.getElementById('interval-seconds').value=30" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded text-slate-300">30秒</button>
+                            <button onclick="document.getElementById('interval-seconds').value=60" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded text-slate-300">60秒</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 実行ボタン -->
+                <button id="btn-process" disabled class="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl shadow-lg transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-play"></i>
+                    <span>分割処理を開始する</span>
+                </button>
+            </div>
+
+            <!-- 処理進捗インジケーター -->
+            <div id="progress-card" class="hidden bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 space-y-3">
+                <div class="flex justify-between text-xs font-medium">
+                    <span id="progress-status" class="text-blue-400">処理中...</span>
+                    <span id="progress-percent" class="text-slate-300">0%</span>
+                </div>
+                <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="bg-blue-500 h-full w-0 transition-all duration-150"></div>
+                </div>
+            </div>
+
+            <!-- 出力結果（生成された動画クリップ一覧） -->
+            <div id="results-card" class="hidden bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 space-y-3">
+                <h3 class="text-sm font-semibold text-slate-200 flex items-center justify-between">
+                    <span>生成されたファイル</span>
+                    <span id="result-count" class="text-xs font-normal text-slate-400">0件</span>
+                </h3>
+                <div id="clip-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <!-- JavaScriptで要素を動的追加 -->
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 非表示のキャンバス（動画切りだし処理用） -->
+    <canvas id="offscreen-canvas" class="hidden"></canvas>
+
+    <script>
+        // DOM要素参照
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const playerContainer = document.getElementById('player-container');
+        const video = document.getElementById('video-element');
+        const seekBar = document.getElementById('seek-bar');
+        const btnPlayPause = document.getElementById('btn-play-pause');
+        const timeDisplay = document.getElementById('time-display');
+        const btnChangeFile = document.getElementById('btn-change-file');
+
+        const customStart = document.getElementById('custom-start');
+        const customEnd = document.getElementById('custom-end');
+        const intervalSeconds = document.getElementById('interval-seconds');
+
+        const btnProcess = document.getElementById('btn-process');
+        const progressCard = document.getElementById('progress-card');
+        const progressBar = document.getElementById('progress-bar');
+        const progressStatus = document.getElementById('progress-status');
+        const progressPercent = document.getElementById('progress-percent');
+
+        const resultsCard = document.getElementById('results-card');
+        const clipList = document.getElementById('clip-list');
+        const resultCount = document.getElementById('result-count');
+
+        const canvas = document.getElementById('offscreen-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let videoFile = null;
+        let activeMode = 'custom'; // 'custom' | 'interval'
+        let isProcessing = false;
+
+        // --- ドラッグ＆ドロップ ＆ ファイル読み込み ---
+        ['dragenter', 'dragover'].forEach(name => {
+            dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        });
+        ['dragleave', 'drop'].forEach(name => {
+            dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('video/')) loadVideo(files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) loadVideo(e.target.files[0]);
+        });
+        btnChangeFile.addEventListener('click', () => {
+            fileInput.value = '';
+            playerContainer.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            btnProcess.disabled = true;
+            videoFile = null;
+        });
+
+        function loadVideo(file) {
+            videoFile = file;
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            
+            dropZone.classList.add('hidden');
+            playerContainer.classList.remove('hidden');
+            playerContainer.classList.add('flex');
+            btnProcess.disabled = false;
+            
+            resultsCard.classList.add('hidden');
+            clipList.innerHTML = '';
+        }
+
+        // --- プレイヤーコントロール ---
+        video.addEventListener('loadedmetadata', () => {
+            customStart.value = 0;
+            customEnd.value = Math.min(10, Math.floor(video.duration)).toFixed(1);
+            updateTimeDisplay();
+        });
+
+        video.addEventListener('timeupdate', () => {
+            if (!video.duration) return;
+            const percent = (video.currentTime / video.duration) * 100;
+            seekBar.value = percent;
+            updateTimeDisplay();
+        });
+
+        seekBar.addEventListener('input', () => {
+            if (!video.duration) return;
+            video.currentTime = (seekBar.value / 100) * video.duration;
+        });
+
+        btnPlayPause.addEventListener('click', () => {
+            if (video.paused) {
+                video.play();
+                btnPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
+            } else {
+                video.pause();
+                btnPlayPause.innerHTML = '<i class="fa-solid fa-play"></i>';
+            }
+        });
+
+        function updateTimeDisplay() {
+            const cur = formatTime(video.currentTime || 0);
+            const dur = formatTime(video.duration || 0);
+            timeDisplay.textContent = `${cur} / ${dur}`;
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function setMarker(type) {
+            if (type === 'start') customStart.value = video.currentTime.toFixed(1);
+            if (type === 'end') customEnd.value = video.currentTime.toFixed(1);
+        }
+
+        // --- モード切替 ---
+        function switchMode(mode) {
+            activeMode = mode;
+            const tabCustom = document.getElementById('tab-custom');
+            const tabInterval = document.getElementById('tab-interval');
+            const modeCustom = document.getElementById('mode-custom');
+            const modeInterval = document.getElementById('mode-interval');
+
+            if (mode === 'custom') {
+                tabCustom.className = "py-2 rounded-lg transition bg-blue-600 text-white shadow";
+                tabInterval.className = "py-2 rounded-lg transition text-slate-400 hover:text-slate-200";
+                modeCustom.classList.remove('hidden');
+                modeInterval.classList.add('hidden');
+            } else {
+                tabInterval.className = "py-2 rounded-lg transition bg-blue-600 text-white shadow";
+                tabCustom.className = "py-2 rounded-lg transition text-slate-400 hover:text-slate-200";
+                modeInterval.classList.remove('hidden');
+                modeCustom.classList.add('hidden');
+            }
+        }
+
+        // --- 分割・キャプチャ処理 (MediaRecorder API) ---
+        btnProcess.addEventListener('click', async () => {
+            if (!videoFile || isProcessing) return;
+
+            const duration = video.duration;
+            let segments = [];
+
+            if (activeMode === 'custom') {
+                const start = parseFloat(customStart.value);
+                const end = parseFloat(customEnd.value);
+
+                if (isNaN(start) || isNaN(end) || start >= end || start >= duration) {
+                    alert('正しい開始時間と終了時間を指定してください。');
+                    return;
+                }
+                segments.push({ start, end: Math.min(end, duration), name: `clip_custom_${Math.round(start)}s-${Math.round(end)}s` });
+            } else {
+                const interval = parseFloat(intervalSeconds.value);
+                if (isNaN(interval) || interval <= 0) {
+                    alert('正しい分割秒数を指定してください。');
+                    return;
+                }
+                let current = 0;
+                let index = 1;
+                while (current < duration) {
+                    const next = Math.min(current + interval, duration);
+                    segments.push({ start: current, end: next, name: `clip_part_${index}_${Math.round(current)}s-${Math.round(next)}s` });
+                    current = next;
+                    index++;
+                }
+            }
+
+            // UI 状態変更
+            isProcessing = true;
+            btnProcess.disabled = true;
+            progressCard.classList.remove('hidden');
+            resultsCard.classList.add('hidden');
+            clipList.innerHTML = '';
+
+            // キャプチャ用設定
+            canvas.width = video.videoWidth || 1280;
+            canvas.height = video.videoHeight || 720;
+
+            const stream = canvas.captureStream(30); // 30 FPS
+            
+            // オーディオトラックの結合（動画に音声が含まれる場合）
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioCtx.createMediaElementSource(video);
+                const dest = audioCtx.createMediaStreamDestination();
+                source.connect(dest);
+                source.connect(audioCtx.destination);
+                
+                const audioTrack = dest.stream.getAudioTracks()[0];
+                if (audioTrack) stream.addTrack(audioTrack);
+            } catch (e) {
+                console.warn('Audio capture setup skipped:', e);
+            }
+
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : 'video/webm';
+
+            const generatedBlobs = [];
+
+            for (let i = 0; i < segments.length; i++) {
+                const seg = segments[i];
+                progressStatus.textContent = `切り出し中 (${i + 1}/${segments.length}): ${seg.name}`;
+                
+                const blob = await recordSegment(video, seg.start, seg.end, stream, mimeType, (prog) => {
+                    const totalProgress = Math.round(((i + prog) / segments.length) * 100);
+                    progressBar.style.width = `${totalProgress}%`;
+                    progressPercent.textContent = `${totalProgress}%`;
+                });
+
+                generatedBlobs.push({ blob, name: seg.name });
+            }
+
+            // 完了処理
+            progressStatus.textContent = '完了しました！';
+            progressBar.style.width = '100%';
+            progressPercent.textContent = '100%';
+
+            setTimeout(() => {
+                progressCard.classList.add('hidden');
+                displayResults(generatedBlobs);
+                isProcessing = false;
+                btnProcess.disabled = false;
+            }, 600);
+        });
+
+        // 1つのセグメントを録画レンダリングする関数
+        function recordSegment(videoEl, startTime, endTime, stream, mimeType, onProgress) {
+            return new Promise((resolve) => {
+                const recorder = new MediaRecorder(stream, { mimeType });
+                const chunks = [];
+
+                recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+                recorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: mimeType });
+                    resolve(blob);
+                };
+
+                videoEl.currentTime = startTime;
+
+                const renderLoop = () => {
+                    if (videoEl.currentTime >= endTime || videoEl.paused) {
+                        videoEl.pause();
+                        recorder.stop();
+                        return;
+                    }
+
+                    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+                    
+                    const duration = endTime - startTime;
+                    const elapsed = videoEl.currentTime - startTime;
+                    onProgress(Math.min(elapsed / duration, 1));
+
+                    requestAnimationFrame(renderLoop);
+                };
+
+                videoEl.onseeked = function handleSeeked() {
+                    videoEl.onseeked = null;
+                    recorder.start();
+                    videoEl.play();
+                    renderLoop();
+                };
+            });
+        }
+
+        // --- 結果の表示 ＆ ダウンロードボタン生成 ---
+        function displayResults(items) {
+            resultsCard.classList.remove('hidden');
+            resultCount.textContent = `${items.length}件のクリップ`;
+
+            items.forEach((item, idx) => {
+                const url = URL.createObjectURL(item.blob);
+                const sizeMB = (item.blob.size / (1024 * 1024)).toFixed(2);
+
+                const div = document.createElement('div');
+                div.className = "bg-slate-900/60 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between";
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <div class="w-8 h-8 bg-blue-600/20 text-blue-400 rounded-lg flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-file-video text-sm"></i>
+                        </div>
+                        <div class="truncate">
+                            <p class="text-xs font-medium text-slate-200 truncate">${item.name}.webm</p>
+                            <p class="text-[10px] text-slate-400">${sizeMB} MB</p>
+                        </div>
+                    </div>
+                    <a href="${url}" download="${item.name}.webm" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1 shrink-0 transition">
+                        <i class="fa-solid fa-download"></i>
+                        <span>保存</span>
+                    </a>
+                `;
+                clipList.appendChild(div);
+            });
+        }
+    </script>
+</body>
+</html>
